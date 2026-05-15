@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FormProvider } from './context/FormContext';
 import StepIndicator from './components/StepIndicator';
 import Step1_LoanType from './components/Step1_LoanType';
@@ -9,7 +9,7 @@ import Step5_LoanSpecific from './components/Step5_LoanSpecific';
 import Step6_DocumentUpload from './components/Step6_DocumentUpload';
 import Step7_ESignature from './components/Step7_ESignature';
 import Step8_ReviewSummary from './components/Step8_ReviewSummary';
-import { getResumedData, saveFormProgress } from './services/api';
+import { getResumedData } from './services/api';
 import useAutoSave from './hooks/useAutoSave';
 
 const steps = [
@@ -36,37 +36,65 @@ function App() {
     sessionId: `session_${Date.now()}`,
   });
 
-  // Resume auto-save
+  // Resume saved progress
   useEffect(() => {
     const saved = localStorage.getItem('loanSessionId');
     const session = saved || formData.sessionId;
     if (!localStorage.getItem('loanSessionId')) localStorage.setItem('loanSessionId', session);
     getResumedData(session).then(data => {
-      if (data && Object.keys(data).length) setFormData(prev => ({ ...prev, ...data, sessionId: session }));
+      if (data && Object.keys(data).length) {
+        setFormData(prev => ({ ...prev, ...data, sessionId: session }));
+      }
     });
   }, []);
 
-  useAutoSave(formData, 2000); // auto-save every 2 sec
+  useAutoSave(formData, 2000);
 
-  const updateForm = (section, value) => {
-  setFormData(prev => {
-    // If section is a top-level field (like 'loanType', 'signature', 'documents')
-    const topLevelFields = ['loanType', 'signature', 'documents', 'sessionId'];
-    if (topLevelFields.includes(section)) {
-      return { ...prev, [section]: value };
-    }
-    // Otherwise merge into nested object
-    return { ...prev, [section]: { ...prev[section], ...value } };
-  });
-};
+  const updateForm = useCallback((section, value) => {
+    setFormData(prev => {
+      const topLevelFields = ['loanType', 'signature', 'documents', 'sessionId'];
+      if (topLevelFields.includes(section)) {
+        return { ...prev, [section]: value };
+      }
+      return { ...prev, [section]: { ...prev[section], ...value } };
+    });
+  }, []);
 
-  const goNext = () => { if (currentStep < steps.length - 1) setCurrentStep(prev => prev + 1); };
-  const goBack = () => { if (currentStep > 0) setCurrentStep(prev => prev - 1); };
+  // Reset everything and go to step 0 (home page)
+  const resetForm = useCallback(() => {
+    setFormData({
+      loanType: 'Personal',
+      personal: { fullName: '', dob: '', pan: '', aadhaar: '', panVerified: false, aadhaarVerified: false },
+      address: { street: '', city: '', state: '', pincode: '', country: 'India' },
+      employment: { type: 'Salaried', annualIncome: '', employer: '' },
+      loanSpecific: {},
+      documents: [],
+      signature: null,
+      sessionId: `session_${Date.now()}`,
+    });
+    setCurrentStep(0);
+    localStorage.removeItem('loanSessionId');
+  }, []);
+
+  const goNext = () => {
+    if (currentStep < steps.length - 1) setCurrentStep(prev => prev + 1);
+  };
+  const goBack = () => {
+    if (currentStep > 0) setCurrentStep(prev => prev - 1);
+  };
 
   const CurrentStepComponent = steps[currentStep].component;
 
+  const contextValue = {
+    formData,
+    updateForm,
+    currentStep,
+    stepsLength: steps.length,
+    resetForm,
+  };
+
   return (
-    <FormProvider value={{ formData, updateForm, currentStep, stepsLength: steps.length }}>
+    <FormProvider value={contextValue}>
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
           <StepIndicator steps={steps} currentStep={currentStep} />
