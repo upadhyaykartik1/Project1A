@@ -1,21 +1,20 @@
-// vite.config.cjs
-const { defineConfig } = require('vite');
-const react = require('@vitejs/plugin-react');
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
-module.exports = defineConfig({
+export default defineConfig({
   plugins: [react()],
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': 'http://localhost:5000',
+    },
+  },
   build: {
-    target: 'esnext',      // ← skip transpilation
+    target: 'es2020',        // ✅ ensures destructuring is supported
   },
   optimizeDeps: {
     esbuildOptions: {
-      target: 'esnext',    // ← also for dependencies
-    },
-  },
-  server: {
-    port: 3000,
-    proxy: {
-      '/api': 'http://localhost:5000',
+      target: 'es2020',      // ✅ also for dependency pre‑bundling
     },
   },
 });
